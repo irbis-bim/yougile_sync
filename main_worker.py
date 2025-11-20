@@ -1,6 +1,6 @@
 from config import APITOKEN, PGDSN, SCHEMA
 from yougile_api import YougileClient
-from db import connect, ensureschema, upsertrows, getexistingids
+from db import connect, ensure_schema, upsert_rows, get_existing_ids
 from mapping import mapboard, mapuser, maptask
 
 def run_sync_once():
