@@ -2,67 +2,67 @@ import requests
 from urllib.parse import urljoin
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
-APIBASE = "https://ru.yougile.com/api-v2"
+API_BASE = "https://ru.yougile.com/api-v2/"
 
 class YougileError(Exception):
     pass
 
-def authheaders(api_bearer_token: str) -> dict:
-    return {
-        "Authorization": f"Bearer {api_bearer_token}",
-        "Content-Type": "application/json",
-    }
+def _auth_headers(api_bearer_token: str) -> dict:
+    return {"Authorization": f"Bearer {api_bearer_token}", "Content-Type": "application/json"}
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=30),
        stop=stop_after_attempt(5),
        retry=retry_if_exception_type((requests.RequestException, YougileError)))
-def get(url: str, headers: dict, params: dict | None = None):
-    """GET запрос с ретраями для обработки 429 (rate limit) и 401 (auth)"""
+def _get(url: str, headers: dict, params: dict | None = None) -> dict | None:
     r = requests.get(url, headers=headers, params=params, timeout=30)
-    if r.status_code == 429:
-        raise YougileError("Rate limited (429). Retrying...")
-    if r.status_code == 401:
-        raise YougileError("Unauthorized. Check Bearer token.")
-    if r.status_code == 404:
-        return None
-    if not r.ok:
-        raise YougileError(f"HTTP {r.status_code}: {r.text}")
+    if r.status_code == 429: raise YougileError("Rate limited (429). Retrying...")
+    if r.status_code == 401: raise YougileError("Unauthorized. Проверьте Bearer-токен.")
+    if r.status_code == 404: return None
+    if not r.ok: raise YougileError(f"HTTP {r.status_code}: {r.text[:200]}")
     return r.json()
-
-def _unpack(data):
-    """Распаковать результат: если массив — вернуть его; если объект с items/data — вернуть оттуда"""
-    if data is None:
-        return []
-    if isinstance(data, list):
-        return data
-    # YouGile v2 может возвращать {"items": [...]} или {"data": [...]}
-    if isinstance(data, dict):
-        items = data.get("items") or data.get("data")
-        if items and isinstance(items, list):
-            return items
-    return []
-
-def get_one(url: str, headers: dict):
-    """Получить один запрос к эндпоинту (без пагинации page/pageSize, не поддерживаемых v2)"""
-    resp = get(url, headers=headers, params=None)
-    return _unpack(resp)
 
 class YougileClient:
     def __init__(self, api_bearer_token: str):
-        self.baseurl = APIBASE
-        self.headers = authheaders(api_bearer_token)
+        self.base_url = API_BASE
+        self.headers = _auth_headers(api_bearer_token)
 
-    def list_boards(self) -> list[dict]:
-        """Получить все доски"""
-        url = urljoin(self.baseurl + "/", "boards")
-        return get_one(url, self.headers)
+    def _list_paginated(self, endpoint: str) -> list[dict]:
+        items, page, page_size = [], 0, 200
+        while True:
+            params = {"offset": page * page_size, "limit": page_size}
+            data = _get(urljoin(self.base_url, endpoint), self.headers, params=params)
+            if not data: break
+            batch = data.get("content", [])
+            items.extend(batch)
+            if len(batch) < page_size: break
+            page += 1
+        return items
 
-    def list_users(self) -> list[dict]:
-        """Получить всех пользователей"""
-        url = urljoin(self.baseurl + "/", "users")
-        return get_one(url, self.headers)
-
-    def list_tasks(self) -> list[dict]:
-        """Получить все задачи"""
-        url = urljoin(self.baseurl + "/", "tasks")
-        return get_one(url, self.headers)
+    def list_boards(self) -> list[dict]: 
+        return self._list_paginated("boards")
+    
+    def list_users(self) -> list[dict]: 
+        return self._list_paginated("users")
+    
+    def list_columns(self) -> list[dict]: 
+        return self._list_paginated("columns")
+    
+    def list_tasks(self) -> list[dict]: 
+        return self._list_paginated("task-list")
+    
+    def get_all_sticker_states(self) -> dict[str, tuple[str, str, str]]:
+        """Возвращает {state_id: (state_name, parent_id, parent_name)}"""
+        states_map = {}
+        for endpoint in ["string-stickers", "sprint-stickers"]:
+            data = _get(urljoin(self.base_url, endpoint), self.headers)
+            if data and "content" in data:
+                for group in data["content"]:
+                    if isinstance(group, dict):
+                        parent_id = str(group.get("id", ""))
+                        parent_name = str(group.get("name", ""))
+                        for state in group.get("states", []):
+                            if "id" in state and "name" in state:
+                                state_id = str(state["id"])
+                                state_name = str(state["name"])
+                                states_map[state_id] = (state_name, parent_id, parent_name)
+        return states_map
