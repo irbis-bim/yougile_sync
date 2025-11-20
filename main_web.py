@@ -24,7 +24,7 @@ INDEX_HTML = """
 <body>
   <div class="card">
     <h1>YouGile → PostgreSQL</h1>
-    <p>Ручной запуск синхронизации данных. Нажмите кнопку, чтобы выполнить разовую загрузку.</p>
+    <p>Нажмите кнопку для синхронизации</p>
     <button id="syncBtn" onclick="runSync()">Синхронизировать</button>
     <div class="status" id="status"></div>
   </div>
@@ -33,7 +33,7 @@ async function runSync() {
   const btn = document.getElementById('syncBtn');
   const st = document.getElementById('status');
   btn.disabled = true;
-  st.textContent = 'Выполняется синхронизация...';
+  st.textContent = 'Выполняется...';
   try {
     const res = await fetch('/sync', { method: 'POST' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -65,8 +65,5 @@ def manual_sync():
 
 if __name__ == "__main__":
     raw_port = os.getenv("PORT")
-    try:
-        port = int(raw_port) if raw_port and raw_port.isdigit() else 10000
-    except Exception:
-        port = 10000
+    port = int(raw_port) if raw_port and raw_port.isdigit() else 10000
     app.run(host="0.0.0.0", port=port)
