@@ -45,7 +45,8 @@ class YougileClient:
         return self._list_paginated("users")
     
     def list_columns(self) -> list[dict]: 
-        return self._list_paginated("columns")
+        url = urljoin(self.baseurl + "/", "columns")
+        return get_one(url, self.headers)
     
     def list_tasks(self) -> list[dict]: 
         return self._list_paginated("task-list")
