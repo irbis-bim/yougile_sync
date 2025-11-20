@@ -2,7 +2,7 @@ import os
 import time
 from datetime import datetime
 
-from config import APITITLE, APITOKEN, PGDSN, SCHEMA
+from config import APPTITLE, APITOKEN, PGDSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensureschema, upsertrows, getexistingids
 from mapping import mapboard, mapuser, maptask
