@@ -24,7 +24,14 @@ def _hours(value):
         return None
 
 def map_board(b: dict):
-    return (str(b.get("id")), str(b.get("name") or ""))
+    # title вместо name
+    return (str(b.get("id")), str(b.get("title") or ""))
+
+def map_task(t: dict):
+    # projectId вместо boardId (или оба)
+    board_id = str(t.get("projectId") or t.get("boardId") or "").strip()
+    if not board_id:
+        return None
 
 def map_user(u: dict):
     return (str(u.get("id")), str(u.get("realName") or u.get("name") or ""))
