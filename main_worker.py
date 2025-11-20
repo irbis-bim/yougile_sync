@@ -1,12 +1,18 @@
+import logging
 from config import APITOKEN, PGDSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensure_schema, upsert_rows, get_existing_ids
 from mapping import map_board, map_user, map_task
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 def run_sync_once():
     if not APITOKEN or not PGDSN:
         raise RuntimeError("Missing YOUGILE_API_TOKEN or DATABASE_URL")
 
+    logger.info("Starting sync...")
+    
     client = YougileClient(APITOKEN)
     conn = connect(PGDSN)
     ensure_schema(conn, SCHEMA)
@@ -15,25 +21,25 @@ def run_sync_once():
     users = client.list_users() or []
     tasks = client.list_tasks() or []
 
-    print(f"DEBUG: boards raw count = {len(boards)}")
-    print(f"DEBUG: users raw count = {len(users)}")
-    print(f"DEBUG: tasks raw count = {len(tasks)}")
+    logger.info(f"boards raw count = {len(boards)}")
+    logger.info(f"users raw count = {len(users)}")
+    logger.info(f"tasks raw count = {len(tasks)}")
     
     if boards:
-        print(f"DEBUG: first board sample: {boards[0]}")
+        logger.info(f"first board sample: {boards[0]}")
     
     boardrows = [map_board(b) for b in boards if map_board(b)]
     userrows = [map_user(u) for u in users if map_user(u)]
     taskrows = [map_task(t) for t in tasks if map_task(t)]
 
-    print(f"DEBUG: boardrows count after map = {len(boardrows)}")
-    print(f"DEBUG: userrows count after map = {len(userrows)}")
-    print(f"DEBUG: taskrows count after map = {len(taskrows)}")
+    logger.info(f"boardrows count after map = {len(boardrows)}")
+    logger.info(f"userrows count after map = {len(userrows)}")
+    logger.info(f"taskrows count after map = {len(taskrows)}")
     
     if boardrows:
-        print(f"DEBUG: first boardrow sample: {boardrows[0]}")
+        logger.info(f"first boardrow sample: {boardrows[0]}")
     if taskrows:
-        print(f"DEBUG: first taskrow sample: {taskrows[0]}")
+        logger.info(f"first taskrow sample: {taskrows[0]}")
 
     if boardrows:
         upsert_rows(conn, "boards", ["id", "name"], boardrows, SCHEMA)
@@ -45,4 +51,5 @@ def run_sync_once():
                     "sprint_name","project_name","direction","state_category"],
                    taskrows, SCHEMA)
 
+    logger.info("Sync completed successfully")
     conn.close()
