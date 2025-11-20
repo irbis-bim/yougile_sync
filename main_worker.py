@@ -15,20 +15,34 @@ def run_sync_once():
     users = client.list_users() or []
     tasks = client.list_tasks() or []
 
+    print(f"DEBUG: boards raw count = {len(boards)}")
+    print(f"DEBUG: users raw count = {len(users)}")
+    print(f"DEBUG: tasks raw count = {len(tasks)}")
+    
+    if boards:
+        print(f"DEBUG: first board sample: {boards[0]}")
+    
     boardrows = [map_board(b) for b in boards if map_board(b)]
     userrows = [map_user(u) for u in users if map_user(u)]
     taskrows = [map_task(t) for t in tasks if map_task(t)]
+
+    print(f"DEBUG: boardrows count after map = {len(boardrows)}")
+    print(f"DEBUG: userrows count after map = {len(userrows)}")
+    print(f"DEBUG: taskrows count after map = {len(taskrows)}")
+    
+    if boardrows:
+        print(f"DEBUG: first boardrow sample: {boardrows[0]}")
+    if taskrows:
+        print(f"DEBUG: first taskrow sample: {taskrows[0]}")
 
     if boardrows:
         upsert_rows(conn, "boards", ["id", "name"], boardrows, SCHEMA)
     if userrows:
         upsert_rows(conn, "users", ["id", "name"], userrows, SCHEMA)
     if taskrows:
-        # Важно: порядок полей должен совпадать с возвращаемым кортежем map_task
-        # Сейчас map_task возвращает 11 полей, а ниже требуется 10
-        # Нужно адаптировать под фактический порядок map_task или переделать map_task
         upsert_rows(conn, "tasks",
-                   ["id","title","board_id","archived","completed","createdBy","assignee_id","created_at","updated_at","deadline","actual_time"],
+                   ["id","title","board_id","assignee_id","created_at","actual_time",
+                    "sprint_name","project_name","direction","state_category"],
                    taskrows, SCHEMA)
 
     conn.close()
