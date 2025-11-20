@@ -1,5 +1,5 @@
 import logging
-from config import APITOKEN, PGDSN, SCHEMA
+from config import API_TOKEN, PG_DSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensure_schema, upsert_rows, get_existing_ids
 from datetime import datetime
@@ -35,7 +35,7 @@ def _parse_dt(v):
 def run_sync_once():
     """Полная копия логики Worker.run из app.py"""
     logger.info("Подключение к PostgreSQL…")
-    conn = connect(PGDSN)
+    conn = connect(PG_DSN)
     ensure_schema(conn, SCHEMA)
     logger.info(f"Схема '{SCHEMA}' готова.")
 
@@ -47,7 +47,7 @@ def run_sync_once():
     logger.info(f"В БД уже: досок={len(existing_board_ids)}, пользователей={len(existing_user_ids)}, задач={len(existing_task_ids)}")
 
     logger.info("Загрузка данных из API…")
-    client = YougileClient(APITOKEN)
+    client = YougileClient(API_TOKEN)
     boards = client.list_boards() or []
     users_api = client.list_users() or []
     columns = client.list_columns() or []
@@ -194,7 +194,7 @@ def run_sync_once():
             state_category
         ))
 
-    logger.info(f"Новых задач к загрузке: {len(task_rows)} (пропущено: {skipped_tasks})")
+    logger.info(f"Новых задач к загрузке: {len(task_rows)} (пропущено без доски: {skipped_tasks})")
 
     # --- Сохранение задач ---
     if task_rows:
