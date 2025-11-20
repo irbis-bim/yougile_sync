@@ -60,7 +60,6 @@ def status():
 
 @app.post("/sync")
 def manual_sync():
-    # Выполнить синк и вернуть результат
     run_sync_once()
     return jsonify({"ok": True}), 200
 
