@@ -1,7 +1,7 @@
 import psycopg2
 from psycopg2.extras import execute_values
 
-SCHEMA_SQL = """
+SCHEMASQL = """
 DROP TABLE IF EXISTS {schema}.task_sprint_stickers CASCADE;
 DROP TABLE IF EXISTS {schema}.task_string_stickers CASCADE;
 DROP TABLE IF EXISTS {schema}.sprint_sticker_states CASCADE;
@@ -41,33 +41,26 @@ CREATE TABLE IF NOT EXISTS {schema}.tasks (
 def connect(pg_dsn: str):
     return psycopg2.connect(pg_dsn)
 
-def ensure_schema(conn, schema: str = "public"):
+def ensureschema(conn, schema: str = "public"):
     with conn, conn.cursor() as cur:
-        sql = SCHEMA_SQL.format(schema=schema)
-        cur.execute(sql)
+        cur.execute(SCHEMASQL.format(schema=schema))
 
-def get_existing_ids(conn, table: str, schema: str = "public") -> set[str]:
-    """Получить все существующие ID из таблицы"""
+def getexistingids(conn, table: str, schema: str = "public") -> set[str]:
     full_table = f"{schema}.{table}"
     with conn.cursor() as cur:
         cur.execute(f"SELECT id FROM {full_table};")
         return {row[0] for row in cur.fetchall()}
 
-def upsert_rows(conn, table: str, columns: list[str], rows: list[tuple], schema: str = "public"):
+def upsertrows(conn, table: str, columns: list[str], rows: list[tuple], schema: str = "public"):
     if not rows:
         return
-    
     full_table = f"{schema}.{table}"
     cols_str = ", ".join(columns)
-    placeholders = ", ".join(["%s"] * len(columns))
-    
     update_cols = ", ".join([f"{col} = EXCLUDED.{col}" for col in columns if col != "id"])
-    
     sql = f"""
         INSERT INTO {full_table} ({cols_str})
         VALUES %s
         ON CONFLICT (id) DO UPDATE SET {update_cols};
     """
-    
     with conn, conn.cursor() as cur:
         execute_values(cur, sql, rows)
