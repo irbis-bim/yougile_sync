@@ -65,5 +65,9 @@ def manual_sync():
     return jsonify({"ok": True}), 200
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "10000"))
+    raw_port = os.getenv("PORT")
+    try:
+        port = int(raw_port) if raw_port and raw_port.isdigit() else 10000
+    except Exception:
+        port = 10000
     app.run(host="0.0.0.0", port=port)
