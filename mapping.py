@@ -1,6 +1,6 @@
 from datetime import datetime
 
-def _parse_dt(v):
+def parsedt(v):
     try:
         if not v:
             return None
@@ -12,103 +12,70 @@ def _parse_dt(v):
     except Exception:
         return None
 
-def _hours(value):
+def hours(value):
     if value is None:
         return None
     try:
         val = float(value)
-        if val < 0:
+        if val == 0:
             return None
         return round(val, 1)
     except (ValueError, TypeError):
         return None
 
-# ТВОИ БАЗОВЫЕ ФУНКЦИИ
-def map_board(b: dict):
-    return (str(b.get("id")), str(b.get("name") or ""))
+def mapboard(b: dict):
+    # имя доски: берём name, как в исходнике
+    name = b.get("name") or ""
+    return (str(b.get("id")), str(name))
 
-def map_user(u: dict):
+def mapuser(u: dict):
+    # имя пользователя: realName приоритетно, затем name
     return (str(u.get("id")), str(u.get("realName") or u.get("name") or ""))
 
-def map_string_sticker(s: dict):
-    return (str(s.get("id")), str(s.get("name") or ""))
-
-def map_string_state(sticker_id: str, st: dict):
-    return (str(st.get("id")), sticker_id, str(st.get("name") or ""))
-
-def map_sprint_sticker(s: dict):
-    return (str(s.get("id")), str(s.get("name") or ""))
-
-def map_sprint_state(sticker_id: str, st: dict):
-    return (str(st.get("id")), sticker_id, str(st.get("name") or ""), st.get("begin"), st.get("end"))
-
-def map_task(t: dict):
+def maptask(t: dict):
     """
-    Базовый маппинг задачи из твоего формата:
-    Возвращает кортеж:
-    (id, title, board_id, archived, completed, created_by, assignee_id,
-     created_at, updated_at, deadline, actual_time)
+    Возвращает tuple под апсерт в таблицу tasks:
+    ("id","title","board_id","assignee_id","created_at","actual_time",
+     "sprint_name","project_name","direction","state_category")
     """
-    board_id = str(t.get("boardId") or "").strip()
-    if not board_id:
+    tid = str(t.get("id") or "")
+    title = (t.get("title") or "").strip()
+
+    # boardId обязателен
+    board_id = t.get("boardId") or t.get("board_id")
+    board_id = str(board_id or "").strip()
+    if not tid or not board_id:
         return None
 
+    # assignee_id (по факту в исходной логике это один id)
     assignee_id = None
     assigned = t.get("assigned") or []
     if assigned:
         assignee_id = str(assigned[0])
 
+    # created_at: из timestamp
+    created_at = None
+    ts = t.get("timestamp")
+    if ts:
+        try:
+            if isinstance(ts, (int, float)):
+                created_at = datetime.fromtimestamp(ts / 1000.0).date()
+            else:
+                created_at = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).date()
+        except Exception:
+            created_at = None
+
+    # фактическое время
+    actual_time = None
     tt = t.get("timeTracking") or {}
-    actual_time = _hours(tt.get("work"))
+    if "work" in tt:
+        try:
+            w = float(tt.get("work"))
+            actual_time = round(w, 1) if w != 0 else None
+        except (TypeError, ValueError):
+            actual_time = None
 
-    created_at = _parse_dt(t.get("timestamp"))
-    updated_at = _parse_dt(t.get("timestamp"))
-    deadline = _parse_dt(t.get("deadline"))
-
-    return (
-        str(t.get("id")),
-        str(t.get("title") or ""),
-        board_id,
-        bool(t.get("archived") or False),
-        bool(t.get("completed") or False),
-        str(t.get("createdBy") or ""),
-        assignee_id,
-        created_at,
-        updated_at,
-        deadline,
-        actual_time,
-    )
-
-def split_task_stickers(t: dict):
-    """Разбить стикеры задачи на пары (task_id, sticker_id, state_id)"""
-    task_id = str(t.get("id"))
-    pairs = []
-    stickers = t.get("stickers") or {}
-    for sticker_id, state_id in stickers.items():
-        pairs.append((task_id, str(sticker_id), str(state_id)))
-    return pairs
-
-# АЛИАСЫ ПОД ОЖИДАЕМЫЕ ИМЕНА main_worker.py
-def mapboard(b: dict):
-    return map_board(b)
-
-def mapuser(u: dict):
-    return map_user(u)
-
-def maptask(t: dict):
-    """
-    Приводит map_task к ожидаемому формату апсерта в таблицу tasks:
-    ("id","title","board_id","assignee_id","created_at","actual_time",
-     "sprint_name","project_name","direction","state_category")
-    Здесь sprint_name/project_name/direction/state_category отсутствуют в твоём исходном маппинге,
-    поэтому выставляем их в None, чтобы соответствовать DDL и порядку колонок.
-    """
-    base = map_task(t)
-    if not base:
-        return None
-    (tid, title, board_id, archived, completed, created_by,
-     assignee_id, created_at, updated_at, deadline, actual_time) = base
-
+    # поля-метки (заполнятся в будущем или останутся None, как в исходной схеме)
     sprint_name = None
     project_name = None
     direction = None
