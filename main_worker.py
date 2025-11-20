@@ -1,4 +1,4 @@
-from config import APPTITLE, APITOKEN, PGDSN, SCHEMA
+from config import APITOKEN, PGDSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensureschema, upsertrows, getexistingids
 from mapping import mapboard, mapuser, maptask
@@ -8,7 +8,6 @@ def run_sync_once():
         raise RuntimeError("Missing YOUGILE_API_TOKEN or DATABASE_URL")
 
     client = YougileClient(APITOKEN)
-
     conn = connect(PGDSN)
     ensureschema(conn, SCHEMA)
 
@@ -16,22 +15,18 @@ def run_sync_once():
     users = client.list_users() or []
     tasks = client.list_tasks() or []
 
-    boardrows = [mb for b in boards if (mb := mapboard(b))]
-    userrows  = [mu for u in users  if (mu := mapuser(u))]
-    taskrows  = [mt for t in tasks  if (mt := maptask(t))]
+    boardrows = [mapboard(b) for b in boards if mapboard(b)]
+    userrows = [mapuser(u) for u in users if mapuser(u)]
+    taskrows = [maptask(t) for t in tasks if maptask(t)]
 
     if boardrows:
         upsertrows(conn, "boards", ["id", "name"], boardrows, SCHEMA)
     if userrows:
         upsertrows(conn, "users", ["id", "name"], userrows, SCHEMA)
     if taskrows:
-        upsertrows(
-            conn,
-            "tasks",
-            ["id","title","board_id","assignee_id","created_at","actual_time",
-             "sprint_name","project_name","direction","state_category"],
-            taskrows,
-            SCHEMA
-        )
+        upsertrows(conn, "tasks",
+                   ["id","title","board_id","assignee_id","created_at","actual_time",
+                    "sprint_name","project_name","direction","state_category"],
+                   taskrows, SCHEMA)
 
     conn.close()
