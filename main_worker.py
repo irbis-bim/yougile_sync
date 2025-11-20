@@ -9,22 +9,22 @@ def run_sync_once():
 
     client = YougileClient(APITOKEN)
     conn = connect(PGDSN)
-    ensureschema(conn, SCHEMA)
+    ensure_schema(conn, SCHEMA)
 
     boards = client.list_boards() or []
     users = client.list_users() or []
     tasks = client.list_tasks() or []
 
-    boardrows = [mapboard(b) for b in boards if mapboard(b)]
-    userrows = [mapuser(u) for u in users if mapuser(u)]
-    taskrows = [maptask(t) for t in tasks if maptask(t)]
+    boardrows = [map_board(b) for b in boards if map_board(b)]
+    userrows = [map_user(u) for u in users if map_user(u)]
+    taskrows = [map_task(t) for t in tasks if map_task(t)]
 
     if boardrows:
-        upsertrows(conn, "boards", ["id", "name"], boardrows, SCHEMA)
+        upsert_rows(conn, "boards", ["id", "name"], boardrows, SCHEMA)
     if userrows:
-        upsertrows(conn, "users", ["id", "name"], userrows, SCHEMA)
+        upsert_rows(conn, "users", ["id", "name"], userrows, SCHEMA)
     if taskrows:
-        upsertrows(conn, "tasks",
+        upsert_rows(conn, "tasks",
                    ["id","title","board_id","assignee_id","created_at","actual_time",
                     "sprint_name","project_name","direction","state_category"],
                    taskrows, SCHEMA)
