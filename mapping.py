@@ -32,22 +32,19 @@ def map_board(b: dict):
 def map_user(u: dict):
     return (str(u.get("id")), str(u.get("realName") or u.get("name") or ""))
 
-def map_task(t: dict):
+def map_task(t: dict, column_to_board: dict = None):
     """Возвращает кортеж или None если не подходит"""
     task_id = str(t.get("id") or "")
-    
-    # Попытка найти board_id из разных полей
-    board_id = str(t.get("projectId") or t.get("boardId") or "").strip()
-    
-    # ЛОГИРОВАНИЕ для первой попытки
-    if not task_id.startswith("test"):  # только для первых нескольких задач, чтобы не спамить логи
-        logger.info(f"Task {task_id[:8]}: projectId={t.get('projectId')}, boardId={t.get('boardId')}, board_id={board_id}, keys={list(t.keys())[:5]}")
-    
-    if not board_id:
-        logger.warning(f"Task {task_id} has no projectId/boardId, skipping")
+    if not task_id:
         return None
     
     title = str(t.get("title") or "").strip()
+    
+    # Получить boardId через columnId
+    column_id = t.get("columnId")
+    board_id = None
+    if column_id and column_to_board:
+        board_id = column_to_board.get(column_id)
     
     assignee_id = None
     assigned = t.get("assigned") or []
@@ -57,9 +54,5 @@ def map_task(t: dict):
     actual_time = _hours((t.get("timeTracking") or {}).get("work"))
     created_at = _parse_dt(t.get("timestamp"))
     
-    result = (
-        task_id, title, board_id, assignee_id, created_at,
-        actual_time, None, None, None, None
-    )
-    
-    return result
+    return (task_id, title, board_id, assignee_id, created_at, actual_time, None, None, None, None)
+
