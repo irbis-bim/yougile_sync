@@ -14,5 +14,3 @@ services:
         sync: false
       - key: PG_SCHEMA
         value: public
-      - key: HEADLESS
-        value: "1"
