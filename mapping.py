@@ -1,6 +1,6 @@
 from datetime import datetime
 
-def parsedt(v):
+def _parse_dt(v):
     try:
         if not v:
             return None
@@ -12,76 +12,70 @@ def parsedt(v):
     except Exception:
         return None
 
-def hours(value):
+def _hours(value):
     if value is None:
         return None
     try:
         val = float(value)
-        if val == 0:
+        if val < 0:
             return None
         return round(val, 1)
     except (ValueError, TypeError):
         return None
 
-def mapboard(b: dict):
-    # имя доски: берём name, как в исходнике
-    name = b.get("name") or ""
-    return (str(b.get("id")), str(name))
+def map_board(b: dict):
+    return (str(b.get("id")), str(b.get("name") or ""))
 
-def mapuser(u: dict):
-    # имя пользователя: realName приоритетно, затем name
+def map_user(u: dict):
     return (str(u.get("id")), str(u.get("realName") or u.get("name") or ""))
 
-def maptask(t: dict):
-    """
-    Возвращает tuple под апсерт в таблицу tasks:
-    ("id","title","board_id","assignee_id","created_at","actual_time",
-     "sprint_name","project_name","direction","state_category")
-    """
-    tid = str(t.get("id") or "")
-    title = (t.get("title") or "").strip()
+def map_string_sticker(s: dict):
+    return (str(s.get("id")), str(s.get("name") or ""))
 
-    # boardId обязателен
-    board_id = t.get("boardId") or t.get("board_id")
-    board_id = str(board_id or "").strip()
-    if not tid or not board_id:
+def map_string_state(sticker_id: str, st: dict):
+    return (str(st.get("id")), sticker_id, str(st.get("name") or ""))
+
+def map_sprint_sticker(s: dict):
+    return (str(s.get("id")), str(s.get("name") or ""))
+
+def map_sprint_state(sticker_id: str, st: dict):
+    return (str(st.get("id")), sticker_id, str(st.get("name") or ""), st.get("begin"), st.get("end"))
+
+def map_task(t: dict):
+    """Маппинг задачи. Возвращает кортеж или None если boardId пустой"""
+    board_id = str(t.get("boardId") or "").strip()
+    
+    # Пропускаем задачи без boardId
+    if not board_id:
         return None
-
-    # assignee_id (по факту в исходной логике это один id)
+    
     assignee_id = None
     assigned = t.get("assigned") or []
     if assigned:
         assignee_id = str(assigned[0])
-
-    # created_at: из timestamp
-    created_at = None
-    ts = t.get("timestamp")
-    if ts:
-        try:
-            if isinstance(ts, (int, float)):
-                created_at = datetime.fromtimestamp(ts / 1000.0).date()
-            else:
-                created_at = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).date()
-        except Exception:
-            created_at = None
-
-    # фактическое время
-    actual_time = None
+    
     tt = t.get("timeTracking") or {}
-    if "work" in tt:
-        try:
-            w = float(tt.get("work"))
-            actual_time = round(w, 1) if w != 0 else None
-        except (TypeError, ValueError):
-            actual_time = None
-
-    # поля-метки (заполнятся в будущем или останутся None, как в исходной схеме)
-    sprint_name = None
-    project_name = None
-    direction = None
-    state_category = None
-
+    actual_time = _hours(tt.get("work"))
+    
     return (
-        tid, title, board_id, assignee_id, created_at,
-        actual_time, sprint_name, project_name, direction, state_category
+        str(t.get("id")),
+        str(t.get("title") or ""),
+        board_id,
+        bool(t.get("archived") or False),
+        bool(t.get("completed") or False),
+        str(t.get("createdBy") or ""),
+        assignee_id,
+        _parse_dt(t.get("timestamp")),
+        _parse_dt(t.get("timestamp")),
+        _parse_dt(t.get("deadline")),
+        actual_time
     )
+
+def split_task_stickers(t: dict):
+    """Разбить стикеры задачи на пары (task_id, sticker_id, state_id)"""
+    task_id = str(t.get("id"))
+    pairs = []
+    stickers = t.get("stickers") or {}
+    for sticker_id, state_id in stickers.items():
+        pairs.append((task_id, str(sticker_id), str(state_id)))
+    return pairs
