@@ -1,4 +1,7 @@
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 def _parse_dt(v):
     try:
@@ -24,65 +27,39 @@ def _hours(value):
         return None
 
 def map_board(b: dict):
-    # title вместо name
     return (str(b.get("id")), str(b.get("title") or ""))
-
-def map_task(t: dict):
-    # projectId вместо boardId (или оба)
-    board_id = str(t.get("projectId") or t.get("boardId") or "").strip()
-    if not board_id:
-        return None
 
 def map_user(u: dict):
     return (str(u.get("id")), str(u.get("realName") or u.get("name") or ""))
 
-def map_string_sticker(s: dict):
-    return (str(s.get("id")), str(s.get("name") or ""))
-
-def map_string_state(sticker_id: str, st: dict):
-    return (str(st.get("id")), sticker_id, str(st.get("name") or ""))
-
-def map_sprint_sticker(s: dict):
-    return (str(s.get("id")), str(s.get("name") or ""))
-
-def map_sprint_state(sticker_id: str, st: dict):
-    return (str(st.get("id")), sticker_id, str(st.get("name") or ""), st.get("begin"), st.get("end"))
-
 def map_task(t: dict):
-    """Маппинг задачи. Возвращает кортеж или None если boardId пустой"""
-    board_id = str(t.get("boardId") or "").strip()
+    """Возвращает кортеж или None если не подходит"""
+    task_id = str(t.get("id") or "")
     
-    # Пропускаем задачи без boardId
+    # Попытка найти board_id из разных полей
+    board_id = str(t.get("projectId") or t.get("boardId") or "").strip()
+    
+    # ЛОГИРОВАНИЕ для первой попытки
+    if not task_id.startswith("test"):  # только для первых нескольких задач, чтобы не спамить логи
+        logger.info(f"Task {task_id[:8]}: projectId={t.get('projectId')}, boardId={t.get('boardId')}, board_id={board_id}, keys={list(t.keys())[:5]}")
+    
     if not board_id:
+        logger.warning(f"Task {task_id} has no projectId/boardId, skipping")
         return None
+    
+    title = str(t.get("title") or "").strip()
     
     assignee_id = None
     assigned = t.get("assigned") or []
     if assigned:
         assignee_id = str(assigned[0])
     
-    tt = t.get("timeTracking") or {}
-    actual_time = _hours(tt.get("work"))
+    actual_time = _hours((t.get("timeTracking") or {}).get("work"))
+    created_at = _parse_dt(t.get("timestamp"))
     
-    return (
-        str(t.get("id")),
-        str(t.get("title") or ""),
-        board_id,
-        bool(t.get("archived") or False),
-        bool(t.get("completed") or False),
-        str(t.get("createdBy") or ""),
-        assignee_id,
-        _parse_dt(t.get("timestamp")),
-        _parse_dt(t.get("timestamp")),
-        _parse_dt(t.get("deadline")),
-        actual_time
+    result = (
+        task_id, title, board_id, assignee_id, created_at,
+        actual_time, None, None, None, None
     )
-
-def split_task_stickers(t: dict):
-    """Разбить стикеры задачи на пары (task_id, sticker_id, state_id)"""
-    task_id = str(t.get("id"))
-    pairs = []
-    stickers = t.get("stickers") or {}
-    for sticker_id, state_id in stickers.items():
-        pairs.append((task_id, str(sticker_id), str(state_id)))
-    return pairs
+    
+    return result
