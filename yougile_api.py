@@ -8,54 +8,62 @@ class YougileError(Exception):
     pass
 
 def _auth_headers(api_bearer_token: str) -> dict:
-    return {"Authorization": f"Bearer {api_bearer_token}", "Content-Type": "application/json"}
+    return {
+        "Authorization": f"Bearer {api_bearer_token}",
+        "Content-Type": "application/json"
+    }
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=30),
        stop=stop_after_attempt(5),
        retry=retry_if_exception_type((requests.RequestException, YougileError)))
 def _get(url: str, headers: dict, params: dict | None = None) -> dict | None:
     r = requests.get(url, headers=headers, params=params, timeout=30)
-    if r.status_code == 429: raise YougileError("Rate limited (429). Retrying...")
-    if r.status_code == 401: raise YougileError("Unauthorized. Проверьте Bearer-токен.")
-    if r.status_code == 404: return None
-    if not r.ok: raise YougileError(f"HTTP {r.status_code}: {r.text[:200]}")
+    if r.status_code == 429:
+        raise YougileError("Rate limited (429). Retrying...")
+    if r.status_code == 401:
+        raise YougileError("Unauthorized. Проверьте Bearer-токен.")
+    if r.status_code == 404:
+        return None
+    if not r.ok:
+        raise YougileError(f"HTTP {r.status_code}: {r.text[:200]}")
     return r.json()
 
 class YougileClient:
     def __init__(self, api_bearer_token: str):
-        self.base_url = API_BASE
+        self.base_url = API_BASE  # ← base_url с подчёркиванием
         self.headers = _auth_headers(api_bearer_token)
 
     def _list_paginated(self, endpoint: str) -> list[dict]:
         items, page, page_size = [], 0, 200
         while True:
             params = {"offset": page * page_size, "limit": page_size}
-            data = _get(urljoin(self.base_url, endpoint), self.headers, params=params)
-            if not data: break
+            data = _get(urljoin(self.base_url, endpoint), self.headers, params=params)  # ← self.base_url
+            if not data:
+                break
             batch = data.get("content", [])
             items.extend(batch)
-            if len(batch) < page_size: break
+            if len(batch) < page_size:
+                break
             page += 1
         return items
 
-    def list_boards(self) -> list[dict]: 
+    def list_boards(self) -> list[dict]:
         return self._list_paginated("boards")
-    
-    def list_users(self) -> list[dict]: 
+
+    def list_users(self) -> list[dict]:
         return self._list_paginated("users")
-    
-    def list_columns(self) -> list[dict]: 
-        url = urljoin(self.baseurl + "/", "columns")
-        return get_one(url, self.headers)
-    
-    def list_tasks(self) -> list[dict]: 
+
+    def list_columns(self) -> list[dict]:
+        return self._list_paginated("columns")
+
+    def list_tasks(self) -> list[dict]:
         return self._list_paginated("task-list")
-    
+
     def get_all_sticker_states(self) -> dict[str, tuple[str, str, str]]:
         """Возвращает {state_id: (state_name, parent_id, parent_name)}"""
         states_map = {}
         for endpoint in ["string-stickers", "sprint-stickers"]:
-            data = _get(urljoin(self.base_url, endpoint), self.headers)
+            data = _get(urljoin(self.base_url, endpoint), self.headers)  # ← self.base_url
             if data and "content" in data:
                 for group in data["content"]:
                     if isinstance(group, dict):
