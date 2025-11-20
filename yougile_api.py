@@ -17,6 +17,7 @@ def authheaders(api_bearer_token: str) -> dict:
        stop=stop_after_attempt(5),
        retry=retry_if_exception_type((requests.RequestException, YougileError)))
 def get(url: str, headers: dict, params: dict | None = None):
+    """GET запрос с ретраями для обработки 429 (rate limit) и 401 (auth)"""
     r = requests.get(url, headers=headers, params=params, timeout=30)
     if r.status_code == 429:
         raise YougileError("Rate limited (429). Retrying...")
@@ -28,31 +29,40 @@ def get(url: str, headers: dict, params: dict | None = None):
         raise YougileError(f"HTTP {r.status_code}: {r.text}")
     return r.json()
 
+def _unpack(data):
+    """Распаковать результат: если массив — вернуть его; если объект с items/data — вернуть оттуда"""
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return data
+    # YouGile v2 может возвращать {"items": [...]} или {"data": [...]}
+    if isinstance(data, dict):
+        items = data.get("items") or data.get("data")
+        if items and isinstance(items, list):
+            return items
+    return []
+
+def get_one(url: str, headers: dict):
+    """Получить один запрос к эндпоинту (без пагинации page/pageSize, не поддерживаемых v2)"""
+    resp = get(url, headers=headers, params=None)
+    return _unpack(resp)
+
 class YougileClient:
     def __init__(self, api_bearer_token: str):
         self.baseurl = APIBASE
         self.headers = authheaders(api_bearer_token)
 
-    def list_paginated(self, endpoint: str) -> list[dict]:
-        items = []
-        page, page_size = 0, 200
-        while True:
-            url = urljoin(self.baseurl + "/", endpoint.lstrip("/"))
-            data = get(url, headers=self.headers, params={"page": page, "pageSize": page_size}) or {}
-            chunk = data if isinstance(data, list) else data.get("items") or data.get("data") or []
-            if not chunk:
-                break
-            items.extend(chunk)
-            if len(chunk) < page_size:
-                break
-            page += 1
-        return items
-
     def list_boards(self) -> list[dict]:
-        return self.list_paginated("boards")
+        """Получить все доски"""
+        url = urljoin(self.baseurl + "/", "boards")
+        return get_one(url, self.headers)
 
     def list_users(self) -> list[dict]:
-        return self.list_paginated("users")
+        """Получить всех пользователей"""
+        url = urljoin(self.baseurl + "/", "users")
+        return get_one(url, self.headers)
 
     def list_tasks(self) -> list[dict]:
-        return self.list_paginated("tasks")
+        """Получить все задачи"""
+        url = urljoin(self.baseurl + "/", "tasks")
+        return get_one(url, self.headers)
