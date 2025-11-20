@@ -23,6 +23,7 @@ def _hours(value):
     except (ValueError, TypeError):
         return None
 
+# ТВОИ БАЗОВЫЕ ФУНКЦИИ
 def map_board(b: dict):
     return (str(b.get("id")), str(b.get("name") or ""))
 
@@ -42,21 +43,28 @@ def map_sprint_state(sticker_id: str, st: dict):
     return (str(st.get("id")), sticker_id, str(st.get("name") or ""), st.get("begin"), st.get("end"))
 
 def map_task(t: dict):
-    """Маппинг задачи. Возвращает кортеж или None если boardId пустой"""
+    """
+    Базовый маппинг задачи из твоего формата:
+    Возвращает кортеж:
+    (id, title, board_id, archived, completed, created_by, assignee_id,
+     created_at, updated_at, deadline, actual_time)
+    """
     board_id = str(t.get("boardId") or "").strip()
-    
-    # Пропускаем задачи без boardId
     if not board_id:
         return None
-    
+
     assignee_id = None
     assigned = t.get("assigned") or []
     if assigned:
         assignee_id = str(assigned[0])
-    
+
     tt = t.get("timeTracking") or {}
     actual_time = _hours(tt.get("work"))
-    
+
+    created_at = _parse_dt(t.get("timestamp"))
+    updated_at = _parse_dt(t.get("timestamp"))
+    deadline = _parse_dt(t.get("deadline"))
+
     return (
         str(t.get("id")),
         str(t.get("title") or ""),
@@ -65,10 +73,10 @@ def map_task(t: dict):
         bool(t.get("completed") or False),
         str(t.get("createdBy") or ""),
         assignee_id,
-        _parse_dt(t.get("timestamp")),
-        _parse_dt(t.get("timestamp")),
-        _parse_dt(t.get("deadline")),
-        actual_time
+        created_at,
+        updated_at,
+        deadline,
+        actual_time,
     )
 
 def split_task_stickers(t: dict):
@@ -79,3 +87,34 @@ def split_task_stickers(t: dict):
     for sticker_id, state_id in stickers.items():
         pairs.append((task_id, str(sticker_id), str(state_id)))
     return pairs
+
+# АЛИАСЫ ПОД ОЖИДАЕМЫЕ ИМЕНА main_worker.py
+def mapboard(b: dict):
+    return map_board(b)
+
+def mapuser(u: dict):
+    return map_user(u)
+
+def maptask(t: dict):
+    """
+    Приводит map_task к ожидаемому формату апсерта в таблицу tasks:
+    ("id","title","board_id","assignee_id","created_at","actual_time",
+     "sprint_name","project_name","direction","state_category")
+    Здесь sprint_name/project_name/direction/state_category отсутствуют в твоём исходном маппинге,
+    поэтому выставляем их в None, чтобы соответствовать DDL и порядку колонок.
+    """
+    base = map_task(t)
+    if not base:
+        return None
+    (tid, title, board_id, archived, completed, created_by,
+     assignee_id, created_at, updated_at, deadline, actual_time) = base
+
+    sprint_name = None
+    project_name = None
+    direction = None
+    state_category = None
+
+    return (
+        tid, title, board_id, assignee_id, created_at,
+        actual_time, sprint_name, project_name, direction, state_category
+    )
