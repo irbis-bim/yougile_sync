@@ -24,9 +24,11 @@ def run_sync_once():
     if userrows:
         upsert_rows(conn, "users", ["id", "name"], userrows, SCHEMA)
     if taskrows:
+        # Важно: порядок полей должен совпадать с возвращаемым кортежем map_task
+        # Сейчас map_task возвращает 11 полей, а ниже требуется 10
+        # Нужно адаптировать под фактический порядок map_task или переделать map_task
         upsert_rows(conn, "tasks",
-                   ["id","title","board_id","assignee_id","created_at","actual_time",
-                    "sprint_name","project_name","direction","state_category"],
+                   ["id","title","board_id","archived","completed","createdBy","assignee_id","created_at","updated_at","deadline","actual_time"],
                    taskrows, SCHEMA)
 
     conn.close()
