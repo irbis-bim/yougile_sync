@@ -1,7 +1,7 @@
 from config import APITOKEN, PGDSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensure_schema, upsert_rows, get_existing_ids
-from mapping import mapboard, mapuser, maptask
+from mapping import map_board, map_user, map_task
 
 def run_sync_once():
     if not APITOKEN or not PGDSN:
