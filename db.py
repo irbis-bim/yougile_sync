@@ -2,16 +2,6 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 SCHEMA_SQL = """
-DROP TABLE IF EXISTS {schema}.task_sprint_stickers CASCADE;
-DROP TABLE IF EXISTS {schema}.task_string_stickers CASCADE;
-DROP TABLE IF EXISTS {schema}.sprint_sticker_states CASCADE;
-DROP TABLE IF EXISTS {schema}.string_sticker_states CASCADE;
-DROP TABLE IF EXISTS {schema}.tasks CASCADE;
-DROP TABLE IF EXISTS {schema}.users CASCADE;
-DROP TABLE IF EXISTS {schema}.sprint_stickers CASCADE;
-DROP TABLE IF EXISTS {schema}.string_stickers CASCADE;
-DROP TABLE IF EXISTS {schema}.boards CASCADE;
-
 CREATE SCHEMA IF NOT EXISTS {schema};
 
 CREATE TABLE IF NOT EXISTS {schema}.boards (
