@@ -1,8 +1,9 @@
 import logging
+from datetime import datetime, date, timedelta
+
 from config import API_TOKEN, PG_DSN, SCHEMA
 from yougile_api import YougileClient
 from db import connect, ensure_schema, upsert_rows, get_existing_ids
-from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,8 +15,9 @@ SPECIAL_DIRECTION_STICKER_ID = "093eef50-9bde-4d5a-b790-b902e0d1d1b9"
 DEFAULT_PROJECT_STICKER_ID = "c3e14cd1-7d09-437c-9fe2-e009fb8cd313"
 DEFAULT_DIRECTION_STICKER_ID = "120b46c6-ffac-42cb-87b4-e914077e0404"
 
+
 def _parse_dt(v):
-    """Парсим дату как в app.py"""
+    """Парсим дату как в app.py: из мс/сек/ISO в date."""
     try:
         if not v:
             return None
@@ -32,31 +34,68 @@ def _parse_dt(v):
     except (ValueError, TypeError, OSError):
         return None
 
+
 def run_sync_once():
-    """Полная копия логики Worker.run из app.py"""
+    """Синхронизация только 3‑месячного окна задач."""
     logger.info("Подключение к PostgreSQL…")
     conn = connect(PG_DSN)
     ensure_schema(conn, SCHEMA)
     logger.info(f"Схема '{SCHEMA}' готова.")
 
-    # Получаем существующие ID
+    # 1. Чистим только задачи за последние 90 дней
+    cutoff_date = date.today() - timedelta(days=90)
+    logger.info(f"Удаляем задачи из БД с created_at >= {cutoff_date}")
+    with conn, conn.cursor() as cur:
+        cur.execute(
+            f"DELETE FROM {SCHEMA}.tasks WHERE created_at >= %s;",
+            (cutoff_date,),
+        )
+
+    # 2. Получаем существующие ID (после очистки окна)
     logger.info("Проверка существующих данных…")
     existing_task_ids = get_existing_ids(conn, "tasks", SCHEMA)
     existing_board_ids = get_existing_ids(conn, "boards", SCHEMA)
     existing_user_ids = get_existing_ids(conn, "users", SCHEMA)
-    logger.info(f"В БД уже: досок={len(existing_board_ids)}, пользователей={len(existing_user_ids)}, задач={len(existing_task_ids)}")
+    logger.info(
+        f"В БД уже: досок={len(existing_board_ids)}, "
+        f"пользователей={len(existing_user_ids)}, "
+        f"задач всего (старых)={len(existing_task_ids)}"
+    )
 
+    # 3. Загрузка из API
     logger.info("Загрузка данных из API…")
     client = YougileClient(API_TOKEN)
     boards = client.list_boards() or []
     users_api = client.list_users() or []
     columns = client.list_columns() or []
     tasks_raw = client.list_tasks() or []
-    logger.info(f"Получено: досок={len(boards)}, пользователей={len(users_api)}, колонок={len(columns)}, задач={len(tasks_raw)}")
+    logger.info(
+        f"Получено: досок={len(boards)}, пользователей={len(users_api)}, "
+        f"колонок={len(columns)}, задач всего={len(tasks_raw)}"
+    )
 
     logger.info("Загрузка стикеров…")
     sticker_states = client.get_all_sticker_states()
     logger.info(f"Стикеров загружено: {len(sticker_states)}")
+
+    # 4. Оставляем только задачи за последние 90 дней
+    cutoff_dt = datetime.utcnow() - timedelta(days=90)
+    filtered_tasks = []
+    for t in tasks_raw:
+        ts = t.get("createdAt") or t.get("timestamp")
+        if not ts:
+            continue
+        try:
+            if isinstance(ts, (int, float)):
+                dt = datetime.fromtimestamp(ts / 1000.0) if ts > 100000000000 else datetime.fromtimestamp(ts)
+            else:
+                dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if dt >= cutoff_dt:
+            filtered_tasks.append(t)
+    tasks_raw = filtered_tasks
+    logger.info(f"Задач в окне 90 дней: {len(tasks_raw)}")
 
     # --- Подготовка данных для досок (только новые) ---
     logger.info("Подготовка досок…")
@@ -75,7 +114,7 @@ def run_sync_once():
     }
     logger.info(f"Маппинг колонок: {len(col_to_board)} связей")
 
-    # --- Собираем user_id из задач ---
+    # --- Собираем user_id из задач (в окне 90 дней) ---
     logger.info("Сбор пользователей из задач…")
     all_user_ids_from_tasks = set()
     for t in tasks_raw:
@@ -111,7 +150,7 @@ def run_sync_once():
         logger.info("Сохранение новых пользователей…")
         upsert_rows(conn, "users", ["id", "name"], user_rows, SCHEMA)
 
-    # --- Подготовка данных для задач (только новые, ВСЕ доски) ---
+    # --- Подготовка данных для задач (только окно 90 дней) ---
     logger.info("Подготовка задач…")
     task_rows = []
     skipped_tasks = 0
@@ -120,13 +159,12 @@ def run_sync_once():
         if not task_id:
             continue
 
-        # Пропускаем если задача уже в БД
+        # Пропускаем, если такая задача уже есть в БД (из старого окна)
         if str(task_id) in existing_task_ids:
             continue
 
         col_id = t.get("columnId")
         board_id = col_to_board.get(str(col_id)) if col_id else None
-
         if not board_id:
             skipped_tasks += 1
             continue
@@ -148,13 +186,12 @@ def run_sync_once():
             except (ValueError, TypeError):
                 pass
 
-        # ЛОГИКА ЗАВИСИТ ОТ ДОСКИ
+        # Логика по стикерам
         sprint_name = None
         project_name = None
         direction = None
         state_category = None
 
-        # Выбираем ID стикеров в зависимости от доски
         if board_id == SPECIAL_BOARD_ID:
             project_sticker_id = SPECIAL_PROJECT_STICKER_ID
             direction_sticker_id = SPECIAL_DIRECTION_STICKER_ID
@@ -168,31 +205,31 @@ def run_sync_once():
             if state_id_str in sticker_states:
                 state_name_val, parent_id, parent_name = sticker_states[state_id_str]
 
-                # Сопоставляем по ID стикера для этой доски
                 if parent_id == project_sticker_id:
                     project_name = state_name_val
                 elif parent_id == direction_sticker_id:
                     direction = state_name_val
 
-                # Спринт (одинаков для всех)
                 name_lower = state_name_val.lower()
                 if "спринт" in name_lower or "sprint" in name_lower:
                     sprint_name = state_name_val
                 else:
                     state_category = parent_name
 
-        task_rows.append((
-            str(task_id),
-            title,
-            board_id,
-            assignee_id,
-            created_at,
-            actual_time,
-            sprint_name,
-            project_name,
-            direction,
-            state_category
-        ))
+        task_rows.append(
+            (
+                str(task_id),
+                title,
+                board_id,
+                assignee_id,
+                created_at,
+                actual_time,
+                sprint_name,
+                project_name,
+                direction,
+                state_category,
+            )
+        )
 
     logger.info(f"Новых задач к загрузке: {len(task_rows)} (пропущено без доски: {skipped_tasks})")
 
@@ -202,9 +239,10 @@ def run_sync_once():
         upsert_rows(
             conn,
             "tasks",
-            ["id", "title", "board_id", "assignee_id", "created_at", "actual_time", "sprint_name", "project_name", "direction", "state_category"],
+            ["id", "title", "board_id", "assignee_id", "created_at", "actual_time",
+             "sprint_name", "project_name", "direction", "state_category"],
             task_rows,
-            SCHEMA
+            SCHEMA,
         )
 
     logger.info("✓ Импорт завершён!")
