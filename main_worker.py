@@ -79,7 +79,7 @@ def run_sync_once():
     logger.info(f"Стикеров загружено: {len(sticker_states)}")
 
     # 4. Оставляем только задачи за последние 90 дней
-    cutoff_dt = datetime.utcnow() - timedelta(days=90)
+    cutoff_dt = datetime.utcnow() - timedelta(days=720)
     filtered_tasks = []
     for t in tasks_raw:
         ts = t.get("createdAt") or t.get("timestamp")
