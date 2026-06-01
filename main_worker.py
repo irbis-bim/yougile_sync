@@ -43,7 +43,7 @@ def run_sync_once():
     logger.info(f"Схема '{SCHEMA}' готова.")
 
     # 1. Чистим только задачи за последние 90 дней
-    cutoff_date = date.today() - timedelta(days=90)
+    cutoff_date = date.today() - timedelta(days=720)
     logger.info(f"Удаляем задачи из БД с created_at >= {cutoff_date}")
     with conn, conn.cursor() as cur:
         cur.execute(
