@@ -43,7 +43,7 @@ def run_sync_once():
     logger.info(f"Схема '{SCHEMA}' готова.")
 
     # 1. Чистим только задачи за последние 90 дней
-    cutoff_date = date.today() - timedelta(days=720)
+    cutoff_date = date.today() - timedelta(days=90)
     logger.info(f"Удаляем задачи из БД с created_at >= {cutoff_date}")
     with conn, conn.cursor() as cur:
         cur.execute(
@@ -79,7 +79,7 @@ def run_sync_once():
     logger.info(f"Стикеров загружено: {len(sticker_states)}")
 
     # 4. Оставляем только задачи за последние 90 дней
-    cutoff_dt = datetime.utcnow() - timedelta(days=720)
+    cutoff_dt = datetime.utcnow() - timedelta(days=90)
     filtered_tasks = []
     for t in tasks_raw:
         ts = t.get("createdAt") or t.get("timestamp")
