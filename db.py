@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS {schema}.tasks (
     sprint_name TEXT,
     project_name TEXT,
     direction TEXT,
-    state_category TEXT
+    state_category TEXT,
+    project_part TEXT
 );
 """
 
