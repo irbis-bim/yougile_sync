@@ -14,6 +14,7 @@ SPECIAL_PROJECT_STICKER_ID = "5b0a3b20-1dbb-4df5-b3e6-37ae4581905a"
 SPECIAL_DIRECTION_STICKER_ID = "093eef50-9bde-4d5a-b790-b902e0d1d1b9"
 DEFAULT_PROJECT_STICKER_ID = "c3e14cd1-7d09-437c-9fe2-e009fb8cd313"
 DEFAULT_DIRECTION_STICKER_ID = "120b46c6-ffac-42cb-87b4-e914077e0404"
+PROJECT_PART_STICKER_ID = "ec774d00-d63d-4365-9196-46000b66bcd7"
 
 
 def _parse_dt(v):
@@ -191,6 +192,7 @@ def run_sync_once():
         project_name = None
         direction = None
         state_category = None
+        project_part = None
 
         if board_id == SPECIAL_BOARD_ID:
             project_sticker_id = SPECIAL_PROJECT_STICKER_ID
@@ -209,6 +211,8 @@ def run_sync_once():
                     project_name = state_name_val
                 elif parent_id == direction_sticker_id:
                     direction = state_name_val
+                elif parent_id == PROJECT_PART_STICKER_ID:
+                    project_part = state_name_val
 
                 name_lower = state_name_val.lower()
                 if "спринт" in name_lower or "sprint" in name_lower:
@@ -228,6 +232,7 @@ def run_sync_once():
                 project_name,
                 direction,
                 state_category,
+                project_part
             )
         )
 
@@ -240,7 +245,7 @@ def run_sync_once():
             conn,
             "tasks",
             ["id", "title", "board_id", "assignee_id", "created_at", "actual_time",
-             "sprint_name", "project_name", "direction", "state_category"],
+             "sprint_name", "project_name", "direction", "state_category", "project_part"],
             task_rows,
             SCHEMA,
         )
