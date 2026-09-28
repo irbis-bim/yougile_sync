@@ -15,6 +15,7 @@ SPECIAL_DIRECTION_STICKER_ID = "093eef50-9bde-4d5a-b790-b902e0d1d1b9"
 # Конфиг по умолчанию для остальных досок
 DEFAULT_PROJECT_STICKER_ID = "c3e14cd1-7d09-437c-9fe2-e009fb8cd313"
 DEFAULT_DIRECTION_STICKER_ID = "120b46c6-ffac-42cb-87b4-e914077e0404"
+PROJECT_PART_STICKER_ID = "ec774d00-d63d-4365-9196-46000b66bcd7"
 
 def _parse_dt(v):
     """Парсим дату из миллисекунд или ISO строки, возвращаем дату (YYYY-MM-DD)"""
@@ -172,6 +173,7 @@ class Worker(QtCore.QThread):
                 project_name = None
                 direction = None
                 state_category = None
+                project_part = None
 
                 # Выбираем ID стикеров в зависимости от доски
                 if board_id == SPECIAL_BOARD_ID:
@@ -193,6 +195,9 @@ class Worker(QtCore.QThread):
                             project_name = state_name_val
                         elif parent_id == direction_sticker_id:
                             direction = state_name_val
+                        elif parent_id == PROJECT_PART_STICKER_ID:
+                            project_part = state_name_val
+                            
                         
                         # Спринт (одинаков для всех)
                         name_lower = state_name_val.lower()
@@ -211,7 +216,8 @@ class Worker(QtCore.QThread):
                     sprint_name,
                     project_name,
                     direction,
-                    state_category
+                    state_category,
+                    project_part
                 ))
 
             self.progress.emit(f"Новых задач к загрузке: {len(task_rows)} (пропущено: {skipped_tasks})")
@@ -222,7 +228,7 @@ class Worker(QtCore.QThread):
                 upsert_rows(
                     conn,
                     "tasks",
-                    ["id", "title", "board_id", "assignee_id", "created_at", "actual_time", "sprint_name", "project_name", "direction", "state_category"],
+                    ["id", "title", "board_id", "assignee_id", "created_at", "actual_time", "sprint_name", "project_name", "direction", "state_category", "project_part"],
                     task_rows,
                     self.schema
                 )
